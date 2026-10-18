@@ -73,6 +73,18 @@ def scrape_cruise(url):
 
         trip_total = float(trip_total)
 
+        guests = page.locator(
+            '[data-testid="rooms-and-guests-link"]'
+        ).first.text_content()
+
+        parts = guests.split(",")
+
+        traveler_count = 0
+
+        for part in parts:
+            traveler_count += int(
+                part.strip().split()[0]
+            )
 
 
         browser.close()
@@ -85,8 +97,7 @@ def scrape_cruise(url):
             "departure_date": start_date,
             "return_date": end_date,
             "trip_total": trip_total,
-            "nights": (end_date - start_date).days
+            "nights": (end_date - start_date).days,
+            "guests": guests,
+            "traveler_count": traveler_count
         }
-
-
-
