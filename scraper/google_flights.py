@@ -1,5 +1,5 @@
+import re
 from datetime import timedelta
-
 from playwright.sync_api import sync_playwright
 
 
@@ -68,96 +68,226 @@ def get_flight_price(flight_info):
 
         page = context.new_page()
 
-        page.goto(
-            "https://www.google.com/travel/flights"
-        )
+        try:
 
-        page.wait_for_load_state("networkidle")
-        page.wait_for_timeout(3000)
+            page.goto(
+                "https://www.google.com/travel/flights"
+            )
 
-        # Origin
-        page.get_by_role(
-            "combobox",
-            name="Where from?"
-        ).click()
+            page.wait_for_load_state(
+                "networkidle"
+            )
 
-        page.get_by_role(
-            "combobox",
-            name="Where else?"
-        ).fill(home_airport)
+            page.wait_for_timeout(3000)
 
-        page.get_by_role(
-            "option"
-        ).first.wait_for()
+            # Origin
+            page.get_by_role(
+                "combobox",
+                name="Where from?"
+            ).click()
 
-        page.get_by_role(
-            "option"
-        ).first.click()
+            page.get_by_role(
+                "combobox",
+                name="Where else?"
+            ).fill(home_airport)
 
-        # Destination
-        page.get_by_role(
-            "combobox",
-            name="Where to?"
-        ).click()
+            page.get_by_role(
+                "option"
+            ).first.wait_for()
 
-        page.keyboard.type(
-            arrival_airport
-        )
+            page.get_by_role(
+                "option"
+            ).first.click()
 
-        page.get_by_role(
-            "option"
-        ).first.wait_for()
+            # Destination
+            page.get_by_role(
+                "combobox",
+                name="Where to?"
+            ).click()
 
-        page.get_by_role(
-            "option"
-        ).first.click()
+            page.keyboard.type(
+                arrival_airport
+            )
 
-        # Open calendar
-        page.get_by_role(
-            "textbox",
-            name="Departure"
-        ).click()
+            page.get_by_role(
+                "option"
+            ).first.wait_for()
 
-        page.locator(
-            f'[data-iso="{departure_date}"]'
-        ).click()
+            page.get_by_role(
+                "option"
+            ).first.click()
 
-        page.wait_for_timeout(2000)
+            # Dates
+            page.get_by_role(
+                "textbox",
+                name="Departure"
+            ).click()
 
-        page.locator(
-            f'[data-iso="{return_date}"]'
-        ).click()
+            page.locator(
+                f'[data-iso="{departure_date}"]'
+            ).click()
 
-        page.get_by_role(
-            "button",
-            name="Done"
-        ).click()
+            page.wait_for_timeout(1000)
 
-        page.wait_for_timeout(3000)
+            page.locator(
+                f'[data-iso="{return_date}"]'
+            ).click()
 
-        # Search
-        page.get_by_role(
-            "button",
-            name="Search"
-        ).click()
+            page.get_by_role(
+                "button",
+                name="Done"
+            ).click()
 
-        page.wait_for_load_state(
-            "networkidle"
-        )
+            page.wait_for_timeout(2000)
 
-        page.wait_for_timeout(5000)
+            # Search
+            page.get_by_role(
+                "button",
+                name="Search"
+            ).click()
 
-        # Cheapest price
-        price_text = page.locator(
-            '[aria-label$="US dollars"]'
-        ).first.text_content()
+            page.wait_for_load_state(
+                "networkidle"
+            )
 
-        flight_price = int(
-            price_text.replace("$", "")
-            .replace(",", "")
-        )
+            page.wait_for_timeout(5000)
 
-        context.close()
-        browser.close()
+            cards = page.locator(
+                ".OgQvJf"
+            )
 
-        return flight_price
+            #print(
+            #   "Cards found:",
+            #  cards.count()
+            #)
+
+            if cards.count() == 0:
+                print(
+                    "No flight cards found"
+                )
+                return 0
+
+            # FIRST FLIGHT RESULT
+
+            cards.first.click()
+
+            page.wait_for_timeout(3000)
+
+            #print(
+            #    "Clicked first card"
+            #)
+
+            # OPEN FULL RETURN FLIGHT LIST
+
+            view_more = page.get_by_text(
+                "View more flights",
+                exact=True
+            )
+
+            if view_more.count() > 0:
+
+                view_more.click()
+
+                page.wait_for_timeout(3000)
+
+                #print(
+                #    "Clicked View more flights"
+                #)
+
+            else:
+
+                print(
+                    "View more flights not found"
+                )
+            # FIND CHEAPEST RETURN FLIGHT DEPARTING AT OR AFTER NOON
+
+
+            body_text = page.locator(
+                "body"
+            ).text_content()
+
+            start = body_text.find(
+                "Top returning flights"
+            )
+
+            if start >= 0:
+                text = body_text[start:start + 15000]
+            else:
+                text = body_text
+
+            text = text.replace(" ", " ")
+
+            matches = re.findall(
+                r'(\d{1,2}:\d{2}\s*[AP]M).*?\$(\d[\d,]*)',
+                text,
+                re.DOTALL
+            )
+
+            candidates = []
+
+            seen = set()
+
+            for time_str, price_str in matches:
+
+                key = (time_str, price_str)
+
+                if key in seen:
+                    continue
+
+                seen.add(key)
+
+                # Only PM flights
+                if "PM" not in time_str:
+                    continue
+
+                price = int(
+                    price_str.replace(",", "")
+                )
+
+                candidates.append(
+                    (
+                        price,
+                        time_str
+                    )
+                )
+
+            #print(
+            #    "PM candidates:",
+            #   candidates
+            #)
+
+            if not candidates:
+                print(
+                    "No afternoon flights found"
+                )
+
+                return 0
+
+            cheapest_price, cheapest_time = min(
+                candidates,
+                key=lambda x: x[0]
+            )
+
+            #print(
+            #   f"Selected return flight: "
+            #   f"{cheapest_time} "
+            #    f"${cheapest_price}"
+            #)
+
+            return cheapest_price
+
+    #exception block
+        except Exception as e:
+
+            print(
+                "Google Flights error:"
+            )
+
+            print(e)
+
+            return 0
+
+        finally:
+
+            context.close()
+            browser.close()
