@@ -1,28 +1,27 @@
 import json
-import webbrowser
+import os
 from scraper.royal_caribbean import scrape_cruise
 from scraper.google_flights import (
     build_flight_search,
     build_google_flights_url,
     get_flight_price
 )
-
 # ---------------------------------
-# Cruise URLs to compare
-# ---------------------------------
-
-url1 = "https://www.royalcaribbean.com/checkout/summary?groupId=LE08FLL-1526021002&sailDate=2027-03-06&shipCode=LE&packageCode=LE08D143&destinationCode=CARIB&selectedCurrencyCode=USD&country=USA&cabinClassType=INTERIOR&roomIndex=0&r0a=2&r0c=1&r0b=n&r0r=n&r0s=n&r0q=n&r0t=n&r0d=INTERIOR&r0D=y&rgVisited=true&r0C=y&r0e=ZQ&r0L=y&r0f=ZQ&r0g=BESTRATE&r0h=n&r0u=CF056023&r0A=5523.69&r0p=M"
-url2 = "https://www.royalcaribbean.com/checkout/summary?groupId=IC07MIA-2623281014&sailDate=2027-03-27&shipCode=IC&packageCode=IC07E484&destinationCode=CARIB&selectedCurrencyCode=USD&country=USA&cabinClassType=INTERIOR&roomIndex=0&r0a=2&r0c=1&r0b=n&r0r=n&r0s=n&r0q=n&r0t=n&r0d=INTERIOR&r0D=y&rgVisited=true&r0C=y&r0e=U5&r0f=U5&r0L=n&r0J=y&r0g=BESTRATE&r0h=n&r0j=9245&r0w=9&r0B=09&r0x=MS&r0y=c534d975-e165-47a0-b3da-00c3093d1844&r0E=%23B80068&r0u=CF056023&r0A=6729.29&r0p=M"
-
-# ---------------------------------
-# Scrape cruise information
+# Load cruise URLs from JSON file
 # ---------------------------------
 
-cruise1 = scrape_cruise(url1)
-cruise2 = scrape_cruise(url2)
+with open(
+        "data/cruise_urls.json",
+        "r"
+) as f:
+    urls = json.load(f)
 
-cruises = [cruise1, cruise2]
+cruises = []
 
+for url in urls:
+    cruises.append(
+        scrape_cruise(url)
+    )
 print("\nCruise Comparison\n")
 
 results=[]
@@ -96,130 +95,132 @@ for cruise in cruises:
 
     print()
 
-    # save cruise data to json file
-    with open("data/cruises.json", "w") as file:
-        json.dump(
-            cruises,
-            file,
-            default=str,
-            indent=4
-        )
-
-    # sort cheapest first
-    results.sort(
-        key=lambda x: x["total_cost"]
+# save cruise data to json file
+with open("data/cruises.json", "w") as file:
+    json.dump(
+        cruises,
+        file,
+        default=str,
+        indent=4
     )
 
-    html = """
-    <!DOCTYPE html>
-    <html>
-    <head>
-    <meta charset="utf-8">
-    <title>Cruise Comparison</title>
+# sort cheapest first
+results.sort(
+    key=lambda x: x["total_cost"]
+)
 
-    <style>
+html = """
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Cruise Comparison</title>
 
-    body {
-        font-family: Arial, sans-serif;
-        margin: 30px;
-    }
+<style>
 
-    h1 {
-        color: #003366;
-    }
+body {
+    font-family: Arial, sans-serif;
+    margin: 30px;
+}
 
-    table {
-        width: 100%;
-        border-collapse: collapse;
-    }
+h1 {
+    color: #003366;
+}
 
-    th {
-        background: #003366;
-        color: white;
-        padding: 10px;
-    }
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
 
-    td {
-        padding: 10px;
-        border-bottom: 1px solid #ddd;
-    }
+th {
+    background: #003366;
+    color: white;
+    padding: 10px;
+}
 
-    tr:nth-child(even) {
-        background-color: #f5f5f5;
-    }
+td {
+    padding: 10px;
+    border-bottom: 1px solid #ddd;
+}
 
-    .best {
-        background-color: #c8f7c5 !important;
-        font-weight: bold;
-    }
+tr:nth-child(even) {
+    background-color: #f5f5f5;
+}
 
-    </style>
-    </head>
+.best {
+    background-color: #c8f7c5 !important;
+    font-weight: bold;
+}
 
-    <body>
+</style>
+</head>
 
-    <h1>Cruise Comparison</h1>
+<body>
 
-    <table>
+<h1>Cruise Comparison</h1>
 
-    <tr>
-        <th>Rank</th>
-        <th>Ship</th>
-        <th>Cruise</th>
-        <th>Departure</th>
-        <th>Return</th>
-        <th>Nights</th>
-        <th>Cost/Night</th>
-        <th>Cruise Price</th>
-        <th>Flight Price</th>
-        <th>Total Cost</th>
-        <th>Cruise</th>
-        <th>Flights</th>
+<table>
+
+<tr>
+    <th>Rank</th>
+    <th>Ship</th>
+    <th>Cruise</th>
+    <th>Departure</th>
+    <th>Return</th>
+    <th>Nights</th>
+    <th>Cost/Night</th>
+    <th>Cruise Price</th>
+    <th>Flight Price</th>
+    <th>Total Cost</th>
+    <th>Cruise</th>
+    <th>Flights</th>
+</tr>
+"""
+
+for index, result in enumerate(results):
+    row_class = "best" if index == 0 else ""
+
+    rank = index + 1
+
+    html += f"""
+        <tr class="{row_class}">
+        <td>{rank}</td>
+        <td>{result['ship']}</td>
+        <td>{result['cruise']}</td>
+        <td>{result['departure']}</td>
+        <td>{result['return']}</td>
+        <td>{result['nights']}</td>
+        <td>${result['cost_per_night']:,.2f}</td>
+        <td>${result['cruise_price']:,.2f}</td>
+        <td>${result['flight_price']:,.2f}</td>
+        <td>${result['total_cost']:,.2f}</td>
+        <td>
+            <a href="{result['cruise_url']}" target="_blank">
+                View Cruise
+            </a>
+        </td>
+        <td>
+            <a href="{result['flight_url']}" target="_blank">
+                Google Flights
+            </a>
+        </td>
     </tr>
     """
 
-    for index, result in enumerate(results):
-        row_class = "best" if index == 0 else ""
+html += """
+</table>
 
-        rank = index + 1
+</body>
+</html>
+"""
 
-        html += f"""
-        <tr class="{row_class}">
-            <td>{rank}</td>
-            <td>{result['ship']}</td>
-            <td>{result['cruise']}</td>
-            <td>{result['departure']}</td>
-            <td>{result['return']}</td>
-            <td>{result['nights']}</td>
-            <td>${result['cost_per_night']:,.2f}</td>
-            <td>${result['cruise_price']:,.2f}</td>
-            <td>${result['flight_price']:,.2f}</td>
-            <td>${result['total_cost']:,.2f}</td>
-            <td>
-                <a href="{result['cruise_url']}" target="_blank">
-                    View Cruise
-                </a>
-            </td>
-            <td>
-                <a href="{result['flight_url']}" target="_blank">
-                    Google Flights
-                </a>
-            </td>
-        </tr>
-        """
+with open(
+        "cruise_report.html",
+        "w",
+        encoding="utf-8"
+) as f:
+    f.write(html)
 
-    html += """
-    </table>
-
-    </body>
-    </html>
-    """
-
-    with open(
-            "cruise_report.html",
-            "w",
-            encoding="utf-8"
-    ) as f:
-        f.write(html)
-
-    webbrowser.open("cruise_report.html")
+print("Opening report...")
+print(os.path.abspath("cruise_report.html"))
+os.startfile("cruise_report.html")
